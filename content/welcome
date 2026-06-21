@@ -1,0 +1,125 @@
+<div id="window" class="card bg-primary bg-opacity-50 text-primary-content w-96 mockup-window border border-base-300">
+    <div class="card-body">
+        <h2 class="card-title text-4xl">welcome to wobblyOS!</h2>
+        <p>a really really wobbly little os :)</p>
+
+        <div class="card-actions justify-end pt-4">
+            <button class="btn text-xl" href="./home.html"
+                hx-get="./content/home"
+                hx-target="#app"
+                hx-swap="innerHTML transition:true">
+                log in!
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const win = document.getElementById("window");
+
+    let dragging = false;
+    let initialized = false;
+
+    let mouseOffsetX = 0;
+    let mouseOffsetY = 0;
+
+    let targetX = 0;
+    let targetY = 0;
+
+    let currentX = 0;
+    let currentY = 0;
+
+    let velocityX = 0;
+    let velocityY = 0;
+
+    if (!initialized) {
+        const rect = win.getBoundingClientRect();
+
+        currentX = rect.left;
+        currentY = rect.top;
+        targetX = currentX;
+        targetY = currentY;
+
+        win.style.left = currentX + "px";
+        win.style.top = currentY + "px";
+        win.style.transform = "none";
+
+        initialized = true;
+    }
+
+    win.addEventListener("mousedown", (e) => {
+
+        if (e.target.closest("button")) return;
+
+        if (!initialized) {
+            const rect = win.getBoundingClientRect();
+
+            currentX = rect.left;
+            currentY = rect.top;
+
+            targetX = currentX;
+            targetY = currentY;
+
+            win.style.left = currentX + "px";
+            win.style.top = currentY + "px";
+            win.style.transform = "none";
+
+            initialized = true;
+        }
+
+        dragging = true;
+
+        const rect = win.getBoundingClientRect();
+
+        mouseOffsetX = e.clientX - rect.left;
+        mouseOffsetY = e.clientY - rect.top;
+
+        document.body.style.userSelect = "none";
+    });
+
+    document.addEventListener("mousemove", (e) => {
+
+        if (!dragging) return;
+
+        targetX = e.clientX - mouseOffsetX;
+        targetY = e.clientY - mouseOffsetY;
+    });
+
+    document.addEventListener("mouseup", () => {
+        dragging = false;
+        document.body.style.userSelect = "";
+    });
+
+    function animate() {
+
+        // Spring movement
+        currentX += (targetX - currentX) * 0.18;
+        currentY += (targetY - currentY) * 0.18;
+
+        // Velocity
+        velocityX = targetX - currentX;
+        velocityY = targetY - currentY;
+
+        // Rotation
+        const rotate = velocityX * 0.08;
+
+        // Squash & Stretch
+        const stretchX = 1 + Math.min(Math.abs(velocityX) * 0.0015, 0.08);
+        const stretchY = 1 - Math.min(Math.abs(velocityX) * 0.0008, 0.04);
+
+        // Small bounce
+        const bounce = Math.sin(performance.now() * 0.015) * Math.min(Math.abs(velocityX) + Math.abs(velocityY), 25) * 0.15;
+
+        win.style.left = currentX + "px";
+        win.style.top = (currentY + bounce) + "px";
+
+        win.style.transform =
+            `rotate(${rotate}deg) scale(${stretchX}, ${stretchY})`;
+
+        requestAnimationFrame(animate);
+    }
+
+    animate();
+})();
+</script>

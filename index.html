@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="view-transition" content="same-origin">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>wobblyOS</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,200..900;1,200..900&display=swap" rel="stylesheet">
+
+    <link rel="preload" as="image" href="https://images.unsplash.com/photo-1781748806274-b4111e828eb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3wzMjM4NDZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODIwNTc5NTZ8&ixlib=rb-4.1.0&q=85">
+
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@5" rel="stylesheet" type="text/css" />
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
+    <style>
+        * {
+            font-family: "Crimson Pro", serif;
+        }
+
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: url("https://images.unsplash.com/photo-1781748806274-b4111e828eb4?crop=entropy&cs=srgb&fm=jpg&ixid=M3wzMjM4NDZ8MHwxfHJhbmRvbXx8fHx8fHx8fDE3ODIwNTc5NTZ8&ixlib=rb-4.1.0&q=85");
+            background-size: cover;
+            background-position: center;
+        }
+
+        #window {
+            position: fixed;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            cursor: grab;
+        }
+
+        #window.dragging {
+            cursor: grabbing;
+        }
+    </style>
+</head>
+
+<body class="bg-black text-white w-screen h-screen">
+    <main id="app"
+        hx-get="./content/welcome"
+        hx-trigger="load"
+        hx-target="#app"
+        hx-swap="innerHTML">
+    </main>
+</body>
+</html>

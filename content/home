@@ -1,0 +1,438 @@
+<div id="topbar" class="static pt-1 pl-2 font-bold text-xl">
+    <p id="clock"></p>
+</div>
+
+<!-- HOME WINDOW -->
+<div id="window-home" class="card bg-primary bg-opacity-50 text-primary-content w-96 mockup-window border border-base-300" style="position:fixed; visibility:hidden;">
+    <div class="absolute text-8xl left-3 -top-13">
+        <button class="pl-1.5 pt-0.5 text-red-500 cursor-pointer" data-close-window="window-home">.</button>
+    </div>
+    <div class="card-body">
+        <h2 class="card-title text-4xl">wobblyOS home</h2>
+        <p>what up what up</p>
+    </div>
+</div>
+
+<!-- DESKTOP ICONS -->
+<div id="desktop" class="absolute top-20 left-6 flex flex-col gap-4">
+    <div id="console-icon" class="cursor-pointer text-center w-20">
+        <div class="text-3xl">🖥️</div>
+        <div class="text-xs">Console</div>
+    </div>
+    <div id="yt-icon" class="cursor-pointer text-center w-20">
+        <div class="text-3xl">📺</div>
+        <div class="text-xs">subscribe</div>
+    </div>
+</div>
+
+<!-- TASKBAR -->
+<div id="taskbar" class="fixed bottom-0 left-0 w-full h-12 bg-black bg-opacity-40 flex items-center gap-2 px-2">
+</div>
+
+<script>
+(() => {
+    const taskbar = document.getElementById("taskbar");
+
+    // ─────────────────────────────────────────────
+    // CLOCK
+    // ─────────────────────────────────────────────
+    const clockEl = document.getElementById("clock");
+    function updateClock() {
+        clockEl.textContent = new Date().toLocaleTimeString();
+    }
+    updateClock();
+    setInterval(updateClock, 1000);
+
+    // ─────────────────────────────────────────────
+    // SPRING HELPER
+    // ─────────────────────────────────────────────
+    function createSpring(stiffness = 0.22, damping = 0.6) {
+        return {
+            value: 0, velocity: 0, target: 1,
+            stiffness, damping,
+            tick() {
+                const force   = (this.target - this.value) * this.stiffness;
+                this.velocity = this.velocity * this.damping + force;
+                this.value   += this.velocity;
+                return this.value;
+            }
+        };
+    }
+
+    // ─────────────────────────────────────────────
+    // TASKBAR BUTTON with spring pop-in / pop-out
+    // ─────────────────────────────────────────────
+    function addTaskbarBtn(label, onClick) {
+        const btn = document.createElement("div");
+        btn.textContent = label;
+        btn.className = "px-3 py-1 bg-white text-black rounded cursor-pointer text-sm font-bold";
+        btn.style.transformOrigin = "center bottom";
+        btn.style.transform = "scale(0)";
+        taskbar.appendChild(btn);
+
+        // Spring pop-in
+        const spring = createSpring(0.24, 0.55);
+        spring.value = 0; spring.velocity = 0.25; spring.target = 1;
+
+        let animating = true;
+        function tick() {
+            if (!animating) return;
+            const s = Math.max(spring.tick(), 0);
+            btn.style.transform = `scale(${s})`;
+            if (Math.abs(spring.target - spring.value) > 0.001 || Math.abs(spring.velocity) > 0.001) {
+                requestAnimationFrame(tick);
+            } else {
+                btn.style.transform = "scale(1)";
+                animating = false;
+            }
+        }
+        requestAnimationFrame(tick);
+
+        btn.addEventListener("click", onClick);
+        return btn;
+    }
+
+    function removeTaskbarBtn(btn, onDone) {
+        // Spring pop-out
+        const spring = createSpring(0.28, 0.65);
+        spring.value = 1; spring.velocity = 0; spring.target = 0;
+
+        function tick() {
+            const s = Math.max(spring.tick(), 0);
+            btn.style.transform = `scale(${s})`;
+            if (Math.abs(spring.target - spring.value) > 0.001 || Math.abs(spring.velocity) > 0.001) {
+                requestAnimationFrame(tick);
+            } else {
+                btn.remove();
+                if (onDone) onDone();
+            }
+        }
+        requestAnimationFrame(tick);
+    }
+
+    // ─────────────────────────────────────────────
+    // SHARED WOBBLY WINDOW FACTORY
+    // ─────────────────────────────────────────────
+    function makeWobblyWindow(el, label) {
+        let dragging     = false;
+        let mouseOffsetX = 0, mouseOffsetY = 0;
+
+        let currentX = 0, currentY = 0;
+        let targetX  = 0, targetY  = 0;
+        let velocityX = 0, velocityY = 0;
+
+        // Open/close springs
+        const scaleSpring  = createSpring(0.20, 0.58);
+        const scaleSpringX = createSpring(0.20, 0.58);
+        scaleSpring.value  = 0; scaleSpring.target  = 1; scaleSpring.velocity = 0.18;
+        scaleSpringX.value = 0; scaleSpringX.target = 1; scaleSpringX.velocity = 0.04;
+
+        let closing   = false;
+        let minimized = false;
+        let taskbarBtn = null;
+
+        // ── Centre on screen ──────────────────────
+        el.style.position   = "fixed";
+        el.style.visibility = "hidden";
+        el.style.display    = "";
+        document.body.appendChild(el);
+
+        requestAnimationFrame(() => {
+            const cx = window.innerWidth  / 2 - el.offsetWidth  / 2;
+            const cy = window.innerHeight / 2 - el.offsetHeight / 2;
+            currentX = cx; currentY = cy;
+            targetX  = cx; targetY  = cy;
+            el.style.left       = cx + "px";
+            el.style.top        = cy + "px";
+            el.style.visibility = "visible";
+        });
+
+        // ── Drag ──────────────────────────────────
+        el.addEventListener("mousedown", (e) => {
+            if (e.target.closest("button")) return;
+            dragging = true;
+            el.classList.add("dragging");
+            const r = el.getBoundingClientRect();
+            mouseOffsetX = e.clientX - r.left;
+            mouseOffsetY = e.clientY - r.top;
+            document.body.style.userSelect = "none";
+        });
+
+        document.addEventListener("mousemove", (e) => {
+            if (!dragging) return;
+            targetX = e.clientX - mouseOffsetX;
+            targetY = e.clientY - mouseOffsetY;
+        });
+
+        document.addEventListener("mouseup", () => {
+            if (!dragging) return;
+            dragging = false;
+            el.classList.remove("dragging");
+            document.body.style.userSelect = "";
+        });
+
+        // ── Minimize → taskbar ────────────────────
+        function minimize() {
+            if (minimized || closing) return;
+            closing = true;
+
+            scaleSpring.target  = 0;
+            scaleSpringX.target = 0;
+            targetY = window.innerHeight - 40;
+
+            // Window finishes flying away, THEN 500ms later the button pops in
+            setTimeout(() => {
+                el.style.visibility = "hidden";
+                minimized = true;
+                closing   = false;
+
+                setTimeout(() => {
+                    taskbarBtn = addTaskbarBtn(label, restore);
+                }, 500);
+            }, 320);
+        }
+
+        // ── Restore ───────────────────────────────
+        function restore() {
+            if (!minimized) return;
+
+            // Pop-out the taskbar button, then restore window after it's gone
+            if (taskbarBtn) {
+                const btn = taskbarBtn;
+                taskbarBtn = null;
+                removeTaskbarBtn(btn, () => {
+                    minimized = false;
+
+                    const cx = window.innerWidth  / 2 - el.offsetWidth  / 2;
+                    const cy = window.innerHeight / 2 - el.offsetHeight / 2;
+                    currentX = cx; currentY = cy;
+                    targetX  = cx; targetY  = cy;
+                    el.style.left = cx + "px";
+                    el.style.top  = cy + "px";
+
+                    scaleSpring.value    = 0; scaleSpring.velocity = 0.2;  scaleSpring.target  = 1;
+                    scaleSpringX.value   = 0; scaleSpringX.velocity = 0.06; scaleSpringX.target = 1;
+
+                    el.style.visibility = "visible";
+                });
+            }
+        }
+
+        // Wire close buttons
+        el.querySelectorAll("[data-close-window]").forEach(btn => {
+            btn.addEventListener("click", minimize);
+        });
+
+        // ── Animation loop ────────────────────────
+        function animate() {
+            if (!minimized) {
+                currentX += (targetX - currentX) * 0.18;
+                currentY += (targetY - currentY) * 0.18;
+                velocityX = targetX - currentX;
+                velocityY = targetY - currentY;
+
+                const sy = scaleSpring.tick();
+                const sx = scaleSpringX.tick();
+
+                const dragRotate   = velocityX * 0.08;
+                const dragStretchX = 1 + Math.min(Math.abs(velocityX) * 0.0015, 0.08);
+                const dragStretchY = 1 - Math.min(Math.abs(velocityX) * 0.0008, 0.04);
+                const bounce       = Math.sin(performance.now() * 0.015)
+                                     * Math.min(Math.abs(velocityX) + Math.abs(velocityY), 25)
+                                     * 0.15;
+
+                const finalSX = dragStretchX * Math.max(sx, 0);
+                const finalSY = dragStretchY * Math.max(sy, 0);
+
+                el.style.left            = currentX + "px";
+                el.style.top             = (currentY + bounce) + "px";
+                el.style.transform       = `rotate(${dragRotate}deg) scale(${finalSX}, ${finalSY})`;
+                el.style.transformOrigin = "center bottom";
+            }
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        return { minimize, restore };
+    }
+
+    // ─────────────────────────────────────────────
+    // HOME WINDOW
+    // ─────────────────────────────────────────────
+    makeWobblyWindow(document.getElementById("window-home"), "🏠 home");
+
+    // ─────────────────────────────────────────────
+    // JS CONSOLE APP
+    // ─────────────────────────────────────────────
+    const consoleIcon = document.getElementById("console-icon");
+    let consoleWindow = null;
+    let consoleCtrl   = null;
+    let consoleHistory = [];   // persists across minimize/restore
+
+    consoleIcon.addEventListener("click", () => {
+        if (consoleWindow) {
+            consoleCtrl.restore();
+            return;
+        }
+
+        consoleWindow = document.createElement("div");
+        consoleWindow.id = "window-console";
+        consoleWindow.className = "card bg-neutral text-neutral-content w-96 mockup-window border border-base-300";
+        consoleWindow.style.position = "fixed";
+
+        consoleWindow.innerHTML = `
+            <div class="absolute text-8xl left-3 -top-13">
+                <button class="pl-1.5 pt-0.5 text-red-500 cursor-pointer" data-close-window="window-console">.</button>
+            </div>
+            <div class="card-body gap-2 p-3">
+                <h2 class="card-title text-xl font-mono">🖥️ JS Console</h2>
+                <div id="console-output"
+                    style="height:220px; overflow-y:auto; font-family:monospace; font-size:0.78rem; background:rgba(0,0,0,0.45); border-radius:6px; padding:8px; display:flex; flex-direction:column; gap:2px;">
+                </div>
+                <div class="flex gap-2 items-center mt-1">
+                    <span class="font-mono text-green-400 text-sm">&gt;</span>
+                    <input id="console-input"
+                        class="input input-bordered input-sm flex-1 font-mono text-sm bg-black text-green-300 border-green-700 focus:outline-none"
+                        placeholder="enter JS expression…" autocomplete="off" spellcheck="false">
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(consoleWindow);
+
+        const output   = consoleWindow.querySelector("#console-output");
+        const input    = consoleWindow.querySelector("#console-input");
+
+        // Replay history into the new output pane
+        consoleHistory.forEach(({ type, text }) => appendLine(type, text));
+
+        function appendLine(type, text) {
+            const line = document.createElement("div");
+            line.style.whiteSpace = "pre-wrap";
+            line.style.wordBreak  = "break-all";
+            line.style.color = type === "input"  ? "#86efac"   // green-300
+                             : type === "error"  ? "#fca5a5"   // red-300
+                             : type === "info"   ? "#93c5fd"   // blue-300
+                             :                    "#e5e7eb";   // gray-200
+
+            line.textContent = type === "input" ? "> " + text : "  " + text;
+            output.appendChild(line);
+            output.scrollTop = output.scrollHeight;
+
+            consoleHistory.push({ type, text });
+        }
+
+        // Intercept console methods while the window is open
+        const _log   = console.log.bind(console);
+        const _warn  = console.warn.bind(console);
+        const _error = console.error.bind(console);
+        const _info  = console.info.bind(console);
+
+        function fmt(args) {
+            return args.map(a => {
+                if (a === null) return "null";
+                if (a === undefined) return "undefined";
+                if (typeof a === "object") {
+                    try { return JSON.stringify(a, null, 2); } catch { return String(a); }
+                }
+                return String(a);
+            }).join(" ");
+        }
+
+        console.log   = (...a) => { _log(...a);   appendLine("output", fmt(a)); };
+        console.warn  = (...a) => { _warn(...a);  appendLine("info",   "⚠ " + fmt(a)); };
+        console.error = (...a) => { _error(...a); appendLine("error",  "✖ " + fmt(a)); };
+        console.info  = (...a) => { _info(...a);  appendLine("info",   "ℹ " + fmt(a)); };
+
+        function runInput() {
+            const code = input.value.trim();
+            if (!code) return;
+            input.value = "";
+            appendLine("input", code);
+            try {
+                const result = Function('"use strict"; return (' + code + ')')();
+                appendLine("output", result === undefined ? "undefined" : fmt([result]));
+            } catch (err) {
+                try {
+                    // Try as a statement (no return)
+                    Function('"use strict";' + code)();
+                } catch (err2) {
+                    appendLine("error", err2.message);
+                }
+            }
+        }
+
+        input.addEventListener("keydown", (e) => {
+            if (e.key === "Enter") runInput();
+        });
+
+        // Restore console methods on destroy
+        function cleanupConsole() {
+            console.log   = _log;
+            console.warn  = _warn;
+            console.error = _error;
+            console.info  = _info;
+        }
+
+        consoleWindow.addEventListener("remove", cleanupConsole);
+
+        // The red dot minimizes; there's no separate "destroy" — console persists history
+        // Override minimize to also restore console methods temporarily
+        consoleCtrl = makeWobblyWindow(consoleWindow, "🖥️ console");
+
+        // Patch minimize to clean up console intercepts while hidden
+        const origMinimize = consoleCtrl.minimize;
+        consoleCtrl.minimize = () => {
+            cleanupConsole();
+            origMinimize();
+        };
+        const origRestore = consoleCtrl.restore;
+        consoleCtrl.restore = () => {
+            // Re-intercept after restore
+            origRestore();
+            console.log   = (...a) => { _log(...a);   appendLine("output", fmt(a)); };
+            console.warn  = (...a) => { _warn(...a);  appendLine("info",   "⚠ " + fmt(a)); };
+            console.error = (...a) => { _error(...a); appendLine("error",  "✖ " + fmt(a)); };
+            console.info  = (...a) => { _info(...a);  appendLine("info",   "ℹ " + fmt(a)); };
+        };
+    });
+
+    // ─────────────────────────────────────────────
+    // YOUTUBE / SUBSCRIBE APP
+    // ─────────────────────────────────────────────
+    const ytIcon = document.getElementById("yt-icon");
+    let ytWindow = null;
+    let ytCtrl   = null;
+
+    ytIcon.addEventListener("click", () => {
+        if (ytWindow) {
+            ytCtrl.restore();
+            return;
+        }
+
+        ytWindow = document.createElement("div");
+        ytWindow.id = "window-yt";
+        ytWindow.className = "card bg-base-100 text-base-content mockup-window border border-base-300";
+        ytWindow.style.position = "fixed";
+        ytWindow.style.width = "480px";
+
+        ytWindow.innerHTML = `
+            <div class="absolute text-8xl left-3 -top-13">
+                <button class="pl-1.5 pt-0.5 text-red-500 cursor-pointer" data-close-window="window-yt">.</button>
+            </div>
+            <div class="card-body p-0 overflow-hidden rounded-b-2xl">
+                <iframe
+                    src="https://www.youtube.com/embed/videoseries?list=PLwjtZgj_IK0iVLdN-6aTe7oMduG-UMsW_"
+                    style="width:480px; height:360px; border:none; display:block;"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowfullscreen>
+                </iframe>
+            </div>
+        `;
+
+        document.body.appendChild(ytWindow);
+        ytCtrl = makeWobblyWindow(ytWindow, "📺 subscribe");
+    });
+
+})();
+</script>
